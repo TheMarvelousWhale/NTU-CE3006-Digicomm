@@ -16,6 +16,14 @@ SNR_dB = 0:0.5:20;
 %SNR = S/N = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
 
+%Holder value for plotting later
+plot_signal = rand(1,nBits);
+plot_noise = rand(1,nBits);
+plot_receive = rand(1,nBits);
+
+%MODIFY THE VARIABLE BELOW TO CHOOSE AT WHICH SNR VALUE TO PLOT 
+%SIGNAL,NOISE and RECEIVE
+plot_SNR_dB = 0;
 %Counter for number of run to calculate BER for each SNR value
 Total_Run = 20;
 %---------------END OF DEFINE--------------------%
@@ -25,7 +33,7 @@ Total_Run = 20;
 
 %Iterate through different SNR value
 for i = 1 : length(SNR)
-	Avg_Error = 0;
+	Sum_Error = 0;
 	for j = 1 : Total_Run
         
         
@@ -77,9 +85,19 @@ for i = 1 : length(SNR)
 		Error = Error ./nBits;  
         
 		%Accumulate the error of each run	
-		Avg_Error = Error + Avg_Error;                   
-	end
-	Error_Rate(i) = Avg_Error / Total_Run;
+		Sum_Error = Error + Sum_Error;
+        
+        %---------------Choose the value for plotting------------------%
+        if (plot_SNR_dB == SNR_dB(i))
+            plot_signal = Signal;
+            plot_noise = Noise;
+            plot_receive = Receive;
+        end
+        
+    end
+    
+    %Average Error
+	Error_Rate(i) = Sum_Error / Total_Run;
 end
 
 %Predict BER using 
@@ -89,7 +107,7 @@ Pred_Rate=(1/2)*erfc(sqrt(SNR));
 %--------------------------------PLOTTING--------------------------------%
 figure("position", [10,100,1400,800]) 
 
-%BER against SNR 
+%BER against SNR -- main plot
 subplot(221)
 semilogy (SNR_dB,Error_Rate,'r*');
 xlabel('Normalized SNR')
@@ -103,17 +121,17 @@ hold off
 
 %data generation
 subplot(222)
-plot(Signal);
+plot(plot_signal);
 title('Data Generated')
 
 %noise generation
 subplot(223)
-plot(Noise);
+plot(plot_noise);
 title('Noise Generated')
 
 %received data generation
 subplot(224)
-plot(Receive);
+plot(plot_receive);
 title('Received Data')
 
 
