@@ -101,7 +101,7 @@ for i = 1 : length(SNR)
 end
 
 %Predict BER using 
-Pred_Rate=(1/2)*erfc(sqrt(SNR)); 
+Pred_BER=(1/2)*erfc(sqrt(SNR)); 
 
 
 %--------------------------------PLOTTING--------------------------------%
@@ -114,8 +114,8 @@ xlabel('Normalized SNR')
 ylabel('Probability Error');
 title('BER against SNR');
 hold on
-semilogy (SNR_dB,Pred_Rate,'m');
-legend('simulation','theory');
+semilogy (SNR_dB,Pred_BER,'m');
+legend('Simulation','Prediction');
 axis([0 20 10^(-5) 1]);
 hold off
 
