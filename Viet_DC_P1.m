@@ -21,9 +21,10 @@ plot_signal = rand(1,nBits);
 plot_noise = rand(1,nBits);
 plot_receive = rand(1,nBits);
 
-%MODIFY THE VARIABLE BELOW TO CHOOSE AT WHICH SNR VALUE TO PLOT 
-%SIGNAL,NOISE and RECEIVE
-plot_SNR_dB = 0;
+%MODIFY THE VARIABLE BELOW TO CHOOSE AT WHICH SNR VALUE 
+%TO PLOT SIGNAL,NOISE and RECEIVE
+plot_SNR_dB = 15;
+
 %Counter for number of run to calculate BER for each SNR value
 Total_Run = 20;
 %---------------END OF DEFINE--------------------%
