@@ -1,41 +1,40 @@
-%%--Admin Stuff--%%
-clear all; 
-close all; 
-clc;
+clear all; close all; clc;
 
 
-%define carrier frequency of 10kHz
-fc = 10000; 
-%16 times oversampled -> sample freq = 16 fc
-fs = 16 * fc;
+%define carrier frequency
+Fc = 10000; %10kHz
+%Assume carrier signal is 16 times oversampled
+%define sampling frequency
+Fs = 16 * Fc;
 %define data rate
-dataRate = 1000; %1kbps
-%define Signal length
-nBits = 1024;
-
+dataRate = 1000; %10kbps
+%Define Signal length
+Num_Bit = 1024;
+%define num bit after encoding
+Enc_Num_Bit = 1792;
 %Define Amplitude
-Amplitude = 5;   %Can change another value 
+Amplitude = 5;
 
-%define 6th order LP butterworth filter with 0.2 normalized cutoff frequency
-[b_low, a_low] = butter(6, 0.2,'low');
+%low pass butterworth filter
+%6th order, 0.2 cutoff frequency
+[b, a] = butter(6, 0.2);
 
 %high pass butterworth filter
-[b_high, a_high] = butter(6, 0.2, 'high');
+[d, c] = butter(6, 0.2, 'high');
 
 %time
-t = 0: 1/fs : nBits/dataRate;
+t = 0: 1/Fs : Enc_Num_Bit/dataRate;
 
 %Carrier
-Carrier = Amplitude .* cos(2*pi*fc*t);
+Carrier = Amplitude .* cos(2*pi*Fc*t);
 
 %signal length
-SignalLength = fs*nBits/dataRate + 1;
+SignalLength = Fs*Enc_Num_Bit/dataRate + 1;
 
 %SNR_dB = 10 log (Signal_Power/Noise_Power)                 
-SNR_dB = -60:1:-20;
+SNR_dB = 0:1:20;
 %==> SNR = Signal_Power/Noise_Power = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
-
 
 % Set run times
 Total_Run = 20;
@@ -50,23 +49,23 @@ for i = 1 : length(SNR)
     
 	for j = 1 : Total_Run
         %Generate Data
-        Data = round(rand(1,nBits));
-        
-        %Fill up messages with our data 
+        Data = round(rand(1,Num_Bit));
+        %encode
+        EncodeHamming = encode(Data,7,4,'hamming/binary');
+
         ContinuousData = zeros(1, SignalLength);
         for k = 1: SignalLength - 1
-            ContinuousData(k) = Data(ceil(k*dataRate/fs));
-        end 
+            ContinuousData(k) = EncodeHamming(ceil(k*dataRate/Fs));
+        end
         ContinuousData(SignalLength) = ContinuousData(SignalLength - 1);
 
         %on-off keying
         SignalOOK = Carrier .* ContinuousData;
 
         %binary phase shift keying
-        ContinuousDataBPSK = ContinuousData .* 2 - 1;   %generate 1 and -1 
-        SignalBPSK = Carrier .* ContinuousDataBPSK;     %sick stuff
+        ContinuousDataBPSK = ContinuousData .* 2 - 1;
+        SignalBPSK = Carrier .* ContinuousDataBPSK;
 
-        %Calculating Signal Power
         Signal_Power_OOK = (norm(SignalOOK)^2)/SignalLength;
         Signal_Power_BPSK = (norm(SignalBPSK)^2)/SignalLength;
         
@@ -76,10 +75,10 @@ for i = 1 : length(SNR)
 		%Received Signal OOK
 		ReceiveOOK = SignalOOK+NoiseOOK;
         
-        %OOK detection using Square Law 
+        %OOK detection
         SquaredOOK = ReceiveOOK .* ReceiveOOK;
         %low pass filter
-        FilteredOOK = filtfilt(b_low, a_low, SquaredOOK);
+        FilteredOOK = filtfilt(b, a, SquaredOOK);
         
         %Generate Noise BPSK
 		Noise_Power_BPSK = Signal_Power_BPSK ./SNR(i);
@@ -90,31 +89,36 @@ for i = 1 : length(SNR)
         %non-coherent detection
         SquaredBPSK = ReceiveBPSK .* ReceiveBPSK;
         %high pass filter (supposingly band pass filter)
-        FilteredBPSK = filtfilt(b_high, a_high, SquaredBPSK);
+        FilteredBPSK = filtfilt(d, c, SquaredBPSK);
         
-        %frequency divider   -- why ???
+        %frequency divider
         DividedBPSK = interp(FilteredBPSK, 2);
         DividedBPSK = DividedBPSK(1:length(FilteredBPSK));
         
         %Multiple and Low Pass Filter
         MultipliedBPSK = DividedBPSK .* ReceiveBPSK;
-        OutputBPSK = filtfilt(b_low, a_low, MultipliedBPSK);
+        OutputBPSK = filtfilt(b, a, MultipliedBPSK);
         
         %demodulate
         %sampling AND threshold
-        samplingPeriod = fs / dataRate;
-        sampledOOK = sample(FilteredOOK, samplingPeriod, nBits);
-        sampledBPSK = sample(OutputBPSK, samplingPeriod, nBits);
-        resultOOK = decision_device(sampledOOK,nBits, Amplitude/2);  %--OOK threshold is 0.5*(A+0)
-        resultBPSK = decision_device(sampledBPSK,nBits,0);           %-- bipolar -- threshold 0        
+        samplingPeriod = Fs / dataRate;
+        [sampledOOK, resultOOK] = sample_and_threshold(FilteredOOK, samplingPeriod, Amplitude/2, Enc_Num_Bit);
+        [sampledBPSK, resultBPSK] = sample_and_threshold(OutputBPSK, samplingPeriod, 0, Enc_Num_Bit);
+        
+		%Calculate the average error for every runtime
+		%Avg_ErrorOOK = num_error(resultOOK, EncodeHamming, Num_Bit) + Avg_ErrorOOK;                   
+        %Avg_ErrorBPSK = num_error(resultBPSK, EncodeHamming, Num_Bit) + Avg_ErrorBPSK;
+        
+        decodedOOK = decode(resultOOK,7,4,'hamming/fmt');
+        decodedBPSK = decode(resultBPSK,7,4,'hamming/fmt');
         
         ErrorOOK = 0;
         ErrorBPSK = 0;
-        for k = 1: nBits - 1
-            if(resultOOK ~= Data(k))
+        for k = 1: Num_Bit - 1
+            if(decodedOOK(k) ~= Data(k))
                 ErrorOOK = ErrorOOK + 1;
             end
-            if(resultBPSK ~= Data(k))
+            if(decodedBPSK(k) ~= Data(k))
                 ErrorBPSK = ErrorBPSK + 1;
             end
         end
@@ -154,25 +158,3 @@ plot(FilteredOOK, 'k');
 figure(2)
 title('Captured Data');
 plot(sampledOOK);
-
-
-%%--HELPER FUNCTION--%%
-function sampled = sample(x,sampling_period,num_bit)
-    sampled = zeros(1, num_bit);
-    for n = 1: num_bit
-        sampled(n) = x((2 * n - 1) * sampling_period / 2);
-    end
-end
-
-
-%This function simulates the decision device
-function binary_out = decision_device(sampled,num_bit,threshold)
-    binary_out = zeros(1,num_bit);
-    for n = 1:num_bit
-        if(sampled(n) > threshold)
-            binary_out(n) = 1;
-        else 
-            binary_out(n) = 0;
-        end
-    end
-end
