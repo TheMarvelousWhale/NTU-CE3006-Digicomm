@@ -51,8 +51,8 @@ for i = 1 : length(SNR)
         %Generate Data
         Data = round(rand(1,Num_Bit));
         %encode
-        EncodeHamming = encode(Data,7,4,'hamming/binary');
-
+        EncodeHamming = encode(Data, 7, 4, 'hamming/fmt'); 
+        
         ContinuousData = zeros(1, SignalLength);
         for k = 1: SignalLength - 1
             ContinuousData(k) = EncodeHamming(ceil(k*dataRate/Fs));
@@ -101,9 +101,13 @@ for i = 1 : length(SNR)
         
         %demodulate
         %sampling AND threshold
+        
+        
         samplingPeriod = Fs / dataRate;
-        [sampledOOK, resultOOK] = sample_and_threshold(FilteredOOK, samplingPeriod, Amplitude/2, Enc_Num_Bit);
-        [sampledBPSK, resultBPSK] = sample_and_threshold(OutputBPSK, samplingPeriod, 0, Enc_Num_Bit);
+        sampledOOK = sample(FilteredOOK, samplingPeriod, Enc_Num_Bit);
+        sampledBPSK = sample(OutputBPSK, samplingPeriod, Enc_Num_Bit);
+        resultOOK = decision_device(sampledOOK,Enc_Num_Bit, Amplitude/2);  %--OOK threshold is 0.5*(A+0)
+        resultBPSK = decision_device(sampledBPSK,Enc_Num_Bit,0);           %-- bipolar -- threshold 0        
         
 		%Calculate the average error for every runtime
 		%Avg_ErrorOOK = num_error(resultOOK, EncodeHamming, Num_Bit) + Avg_ErrorOOK;                   
@@ -158,3 +162,25 @@ plot(FilteredOOK, 'k');
 figure(2)
 title('Captured Data');
 plot(sampledOOK);
+
+
+%%--HELPER FUNCTION--%%
+function sampled = sample(x,sampling_period,num_bit)
+    sampled = zeros(1, num_bit);
+    for n = 1: num_bit
+        sampled(n) = x((2 * n - 1) * sampling_period / 2);
+    end
+end
+
+
+%This function simulates the decision device
+function binary_out = decision_device(sampled,num_bit,threshold)
+    binary_out = zeros(1,num_bit);
+    for n = 1:num_bit
+        if(sampled(n) > threshold)
+            binary_out(n) = 1;
+        else 
+            binary_out(n) = 0;
+        end
+    end
+end

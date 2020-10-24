@@ -1,41 +1,40 @@
-%%--Admin Stuff--%%
-clear all; 
-close all; 
-clc;
+clear all; close all; clc;
 
 
-%define carrier frequency of 10kHz
-fc = 10000; 
-%16 times oversampled -> sample freq = 16 fc
+%define carrier frequency
+fc = 10000; %10kHz
+%Assume carrier signal is 16 times oversampled
+%define sampling frequency
 fs = 16 * fc;
 %define data rate
-dataRate = 1000; %1kbps
-%define Signal length
+dataRate = 1000; %10kbps
+%Define Signal length
 nBits = 1024;
+%define num bit after encoding
 
-%Define Amplitude
-Amplitude = 5;   %Can change another value 
+%Define Amp
+Amp = 5;
 
-%define 6th order LP butterworth filter with 0.2 normalized cutoff frequency
-[b_low, a_low] = butter(6, 0.2,'low');
+%low pass butterworth filter
+%6th order, 0.2 cutoff frequency
+[b, a] = butter(6, 0.2);
 
 %high pass butterworth filter
-[b_high, a_high] = butter(6, 0.2, 'high');
+[d, c] = butter(6, 0.2, 'high');
 
 %time
 t = 0: 1/fs : nBits/dataRate;
 
 %Carrier
-Carrier = Amplitude .* cos(2*pi*fc*t);
+Carrier = Amp .* cos(2*pi*fc*t);
 
 %signal length
 SignalLength = fs*nBits/dataRate + 1;
 
 %SNR_dB = 10 log (Signal_Power/Noise_Power)                 
-SNR_dB = -60:1:-20;
+SNR_dB = 0:1:20;
 %==> SNR = Signal_Power/Noise_Power = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
-
 
 % Set run times
 Total_Run = 20;
@@ -51,22 +50,21 @@ for i = 1 : length(SNR)
 	for j = 1 : Total_Run
         %Generate Data
         Data = round(rand(1,nBits));
+        %encode
         
-        %Fill up messages with our data 
         ContinuousData = zeros(1, SignalLength);
         for k = 1: SignalLength - 1
             ContinuousData(k) = Data(ceil(k*dataRate/fs));
-        end 
+        end
         ContinuousData(SignalLength) = ContinuousData(SignalLength - 1);
 
         %on-off keying
         SignalOOK = Carrier .* ContinuousData;
 
         %binary phase shift keying
-        ContinuousDataBPSK = ContinuousData .* 2 - 1;   %generate 1 and -1 
-        SignalBPSK = Carrier .* ContinuousDataBPSK;     %sick stuff
+        ContinuousDataBPSK = ContinuousData .* 2 - 1;
+        SignalBPSK = Carrier .* ContinuousDataBPSK;
 
-        %Calculating Signal Power
         Signal_Power_OOK = (norm(SignalOOK)^2)/SignalLength;
         Signal_Power_BPSK = (norm(SignalBPSK)^2)/SignalLength;
         
@@ -79,7 +77,7 @@ for i = 1 : length(SNR)
         %OOK detection
         SquaredOOK = ReceiveOOK .* ReceiveOOK;
         %low pass filter
-        FilteredOOK = filtfilt(b_low, a_low, SquaredOOK);
+        FilteredOOK = filtfilt(b, a, SquaredOOK);
         
         %Generate Noise BPSK
 		Noise_Power_BPSK = Signal_Power_BPSK ./SNR(i);
@@ -90,7 +88,7 @@ for i = 1 : length(SNR)
         %non-coherent detection
         SquaredBPSK = ReceiveBPSK .* ReceiveBPSK;
         %high pass filter (supposingly band pass filter)
-        FilteredBPSK = filtfilt(b_high, a_high, SquaredBPSK);
+        FilteredBPSK = filtfilt(d, c, SquaredBPSK);
         
         %frequency divider
         DividedBPSK = interp(FilteredBPSK, 2);
@@ -98,23 +96,30 @@ for i = 1 : length(SNR)
         
         %Multiple and Low Pass Filter
         MultipliedBPSK = DividedBPSK .* ReceiveBPSK;
-        OutputBPSK = filtfilt(b_low, a_low, MultipliedBPSK);
+        OutputBPSK = filtfilt(b, a, MultipliedBPSK);
         
         %demodulate
         %sampling AND threshold
+        
+        
         samplingPeriod = fs / dataRate;
         sampledOOK = sample(FilteredOOK, samplingPeriod, nBits);
         sampledBPSK = sample(OutputBPSK, samplingPeriod, nBits);
-        resultOOK = decision_device(sampledOOK,nBits, Amplitude/2);  %--OOK threshold is 0.5*(A+0)
+        resultOOK = decision_device(sampledOOK,nBits, Amp/2);  %--OOK threshold is 0.5*(A+0)
         resultBPSK = decision_device(sampledBPSK,nBits,0);           %-- bipolar -- threshold 0        
         
+		%Calculate the average error for every runtime
+		%Avg_ErrorOOK = num_error(resultOOK, EncodeHamming, nBits) + Avg_ErrorOOK;                   
+        %Avg_ErrorBPSK = num_error(resultBPSK, EncodeHamming, nBits) + Avg_ErrorBPSK;
+        
+       
         ErrorOOK = 0;
         ErrorBPSK = 0;
         for k = 1: nBits - 1
-            if(resultOOK ~= Data(k))
+            if(resultOOK(k) ~= Data(k))
                 ErrorOOK = ErrorOOK + 1;
             end
-            if(resultBPSK ~= Data(k))
+            if(resultBPSK(k) ~= Data(k))
                 ErrorBPSK = ErrorBPSK + 1;
             end
         end
