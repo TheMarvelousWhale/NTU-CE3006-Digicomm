@@ -137,7 +137,6 @@ for i = 1 : length(SNR)
 end
 
 figure(1);
-subplot(221);
 semilogy (SNR_dB,Error_RateOOK,'k-*');
 hold on
 semilogy(SNR_dB, Error_RateBPSK, 'c-*');
@@ -151,14 +150,14 @@ xlabel('Eb/No')
  
 %OOK plot
 figure(2);
-subplot(221);title('Transmitted Signal OOK');plot(Signal_OOK,'k');
+subplot(221);title('Transmitted Signal OOK');plot(SignalOOK,'k');
 subplot(222);title('Received Signal OOK');plot(ReceiveOOK, 'k')
 subplot(223);title('Filtered Signal OOK');plot(FilteredOOK, 'k');
 subplot(224);title('Captured Data');plot(sampledOOK);
 
 %BPSK plot
 figure(3)
-subplot(221);title('Transmitted Signal BPSK');plot(Signal_BPSK,'k');
+subplot(221);title('Transmitted Signal BPSK');plot(SignalBPSK,'k');
 subplot(222);title('Received Signal BPSK');plot(ReceiveBPSK, 'k')
 subplot(223);title('Filtered Signal BPSK');plot(FilteredBPSK, 'k');
 subplot(224);title('Captured Data');plot(sampledBPSK);
