@@ -1,4 +1,3 @@
-%--Admin stuff--%
 clear all; close all; clc;
 
 
@@ -133,7 +132,6 @@ for i = 1 : length(SNR)
     Error_RateBPSK(i) = Avg_ErrorBPSK / Total_Run;
 end
 
-%Error plot
 figure(1);
 semilogy (SNR_dB,Error_RateOOK,'k-*');
 hold on
@@ -144,19 +142,24 @@ legend('OOK', 'BPSK');
 ylabel('Pe');
 xlabel('Eb/No')
 
-%OOK plot
-figure(2);
-subplot(221);title('Transmitted Signal OOK');plot(Signal_OOK,'k');
-subplot(222);title('Received Signal OOK');plot(ReceiveOOK, 'k')
-subplot(223);title('Filtered Signal OOK');plot(FilteredOOK, 'k');
-subplot(224);title('Captured Data');plot(sampledOOK);
 
-%BPSK plot
-figure(3)
-subplot(221);title('Transmitted Signal BPSK');plot(Signal_BPSK,'k');
-subplot(222);title('Received Signal BPSK');plot(ReceiveBPSK, 'k')
-subplot(223);title('Filtered Signal BPSK');plot(FilteredBPSK, 'k');
-subplot(224);title('Captured Data');plot(sampledBPSK);
+figure(2)
+subplot(221)
+title('Transmitted Signal OOK');
+plot(
+
+subplot(222)
+title('Received Signal OOK');
+plot(ReceiveOOK, 'k')
+
+subplot(223)
+title('Filtered Signal OOK');
+plot(FilteredOOK, 'k');
+
+subplot(224)
+title('Captured Data');
+plot(sampledOOK);
+
 
 %%--HELPER FUNCTION--%%
 function sampled = sample(x,sampling_period,num_bit)
