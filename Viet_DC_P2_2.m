@@ -32,7 +32,7 @@ Carrier = Amp .* cos(2*pi*fc*t);
 SignalLength = fs*nBits/dataRate + 1;
 
 %SNR_dB = 10 log (Signal_Power/Noise_Power)                 
-SNR_dB = 0:1:20;
+SNR_dB = -20:1:20;
 %==> SNR = Signal_Power/Noise_Power = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
 
@@ -73,7 +73,7 @@ for i = 1 : length(SNR)
 		
         %transmission
 		ReceiveOOK = Signal_OOK+NoiseOOK;
-        %detection
+        %detection -- square law device
         SquaredOOK = ReceiveOOK .* ReceiveOOK;
         %low pass filter
         FilteredOOK = filtfilt(b_low, a_low, SquaredOOK);
@@ -94,7 +94,7 @@ for i = 1 : length(SNR)
 		NoiseBPSK = sqrt(Noise_Power_BPSK/2) .*randn(1,SignalLength);
 		
         %transmission
-		ReceiveBPSK = Signal_BPSK+NoiseBPSK;
+        ReceiveBPSK = Signal_BPSK+NoiseBPSK;
         %non-coherent detection -- square law
         SquaredBPSK = ReceiveBPSK .* ReceiveBPSK;
         %high pass filter 
@@ -129,8 +129,8 @@ for i = 1 : length(SNR)
         Avg_ErrorBPSK = ErrorBPSK + Avg_ErrorBPSK;
 
 	end
-	Error_RateOOK(i) = Avg_ErrorOOK / Total_Run;
-    Error_RateBPSK(i) = Avg_ErrorBPSK / Total_Run;
+	Error_RateOOK(i) = (Avg_ErrorOOK / Total_Run)/nBits;
+    Error_RateBPSK(i) = (Avg_ErrorBPSK / Total_Run)/nBits;
 end
 
 %Error plot
@@ -144,6 +144,7 @@ legend('OOK', 'BPSK');
 ylabel('Pe');
 xlabel('Eb/No')
 
+%{
 %OOK plot
 figure(2);
 subplot(221);title('Transmitted Signal OOK');plot(Signal_OOK,'k');
@@ -157,6 +158,8 @@ subplot(221);title('Transmitted Signal BPSK');plot(Signal_BPSK,'k');
 subplot(222);title('Received Signal BPSK');plot(ReceiveBPSK, 'k')
 subplot(223);title('Filtered Signal BPSK');plot(FilteredBPSK, 'k');
 subplot(224);title('Captured Data');plot(sampledBPSK);
+%}
+
 
 %%--HELPER FUNCTION--%%
 function sampled = sample(x,sampling_period,num_bit)
