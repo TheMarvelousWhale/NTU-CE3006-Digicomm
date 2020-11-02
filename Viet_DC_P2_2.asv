@@ -115,9 +115,17 @@ for i = 1 : length(SNR)
         %transmission
         ReceiveBPSK = Signal_BPSK+NoiseBPSK;
         %non-coherent detection -- square law
-        SquaredBPSK = ReceiveBPSK .* Carrier;
-        %
-        OutputBPSK = filtfilt(b_low, a_low, SquaredBPSK);
+        SquaredBPSK = ReceiveBPSK .* ReceiveBPSK;
+        %high pass filter 
+        FilteredBPSK = filtfilt(b_high, a_high, SquaredBPSK);
+    
+        %frequency divider
+        DividedBPSK = interp(FilteredBPSK, 2);
+        DividedBPSK = DividedBPSK(1:length(FilteredBPSK));
+        
+        %Multiple and Band Pass Filter
+        MultipliedBPSK = DividedBPSK .* ReceiveBPSK;
+        OutputBPSK = filtfilt(b_low, a_low, MultipliedBPSK);
         
         %sample and decision device
         sampledBPSK = sample(OutputBPSK, samplingPeriod, nBits);
@@ -178,7 +186,7 @@ for i = 1 : length(SNR)
             plot_decoded_OOK = result_OOK;
             plot_mod_BPSK = Signal_BPSK;
             plot_receive_BPSK = ReceiveBPSK;
-            plot_demod_BPSK = OutputBPSK ;
+            plot_demod_BPSK = FilteredBPSK;
             plot_decoded_BPSK = resultBPSK;
             plot_mod_FSK = Signal_FSK;
             plot_receive_FSK = ReceiveFSK;

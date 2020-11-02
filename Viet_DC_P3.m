@@ -1,182 +1,153 @@
-%--Admin Stuff--%
-
+%--Admin stuff--%
 clear all; close all; clc;
 
-pskdemod
-%define carrier frequency of 10kHz
-fc = 10000; 
-%define sampling frequency of 16*fc
-Fs = 16 * fc;
+
+%{
+        This code aims to encode the original data in two different coding
+        methods and compare their coding efficiency with the no encode
+        version. 
+
+        Coding method chosen: 
+            1> Cyclic
+            2> Hamming
+
+
+%}
+
+%define carrier frequency
+fc = 10000; %10kHz
+%16 times oversampled -> sample freq = 16 fc
+fs = 16 * fc;
+
 %define data rate of 1kbps
-dataRate = 1000; 
+dataRate = 1000;
+%define number of data bits
+nBits = 1024
+Enc_nBits = nBits/4*7;   %we doing (7,4) code
+%define sampling rate
+samplingPeriod = fs / dataRate;
 
-
-%define number of data bit
-nBits = 1024;
-%define num bit after encoding
-Enc_nBits = 1792;
-%Define Amplitude
-Amplitude = 5;
-
-
+%define Amplitude
+Amp = 5;
 %define time steps
-t = 0: 1/Fs : Enc_nBits/dataRate;
-%define sampling 
-samplingPeriod = Fs / dataRate;
+t = 0: 1/fs : Enc_nBits/dataRate;
+t_pure = 0:1/fs : nBits/dataRate;    %pure -- no encode version
 
-
-%define low pass butterworth filter 6th order with normalized 0.2 cutoff frequency
-[b_low, a_low] = butter(6, 0.2, 'low');
-%define high pass butterworth filter  6th order with normalized 0.2 cutoff frequency
-[b_high, a_high] = butter(6, 0.2, 'high');
+%define 6th order LP butterworth filter with 0.2 normalized cutoff frequency
+[b_low,a_low] = butter(6, 0.2);
+%define 6th order HP butterworth filter with 0.2 normalized cutoff frequency
+[b_high,a_high] = butter(6, 0.2, 'high');
 
 
 %generate carrier frequency
-Carrier = Amplitude .* cos(2*pi*fc*t);
+Carrier = Amp .* cos(2*pi*fc*t);
+Carrier_pure = Amp.* cos(2*pi*fc*t_pure);
 
-%define signal length
-SignalLength = Fs*Enc_nBits/dataRate + 1;
+%calculate signal length
+SignalLength = fs*Enc_nBits/dataRate + 1;
+SignalLength_pure = fs*nBits/dataRate +1;
 
 %SNR_dB = 10 log (Signal_Power/Noise_Power)                 
-SNR_dB = -20:1:20;
-plot_SNR_dB = -10;
-%%SNR = S/N = 10^(SNR_dB/10)
+SNR_dB = -30:1:10;
+%==> SNR = Signal_Power/Noise_Power = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
 
-Total_Run = 20;
+%MODIFY THE VARIABLE BELOW TO CHOOSE AT WHICH SNR VALUE 
+%TO PLOT SIGNAL,NOISE and RECEIVE
+plot_SNR_dB = 15;
 
-Error_RateOOK = zeros(length(SNR));
-Error_RateBPSK = zeros(length(SNR));
 
-%Different SNR value
+
+%set run times
+Total_Run = 10;
+
+%define placeholder for error calculation
+Error_Rate_Hamming = zeros(length(SNR));
+Error_Rate_Cyclic = zeros(length(SNR));
+Error_Rate_NoEncode = zeros(length(SNR));
+
+%for each SNR value
 for i = 1 : length(SNR)
-	Avg_ErrorOOK = 0;
-    Avg_ErrorBPSK = 0;
+	Avg_Error_Hamming = 0;
+    Avg_Error_Cyclic = 0;
+    Avg_Error_NoEncode = 0;
     
+    %for each SNR value, average the error over %Total_Run times
 	for j = 1 : Total_Run
         
-        %------ generate data -----%
+        %-----Data generation-----%
         Data = round(rand(1,nBits));
-        
-        %encode
         EncodeHamming = encode(Data, 7, 4, 'hamming/fmt'); 
-        
-        DataStream = zeros(1, SignalLength);
+        EncodeCyclic = encode(Data,7,4,'cyclic');
+
+        %fill the data stream
+        DataStream_Hamming = zeros(1, SignalLength);
+        DataStream_Cyclic = zeros(1, SignalLength);
+
         for k = 1: SignalLength - 1
-            DataStream(k) = EncodeHamming(ceil(k*dataRate/Fs));
-        end
-        DataStream(SignalLength) = DataStream(SignalLength - 1);
+            DataStream_Hamming(k) = EncodeHamming(ceil(k*dataRate/fs));
+            DataStream_Cyclic(k) = EncodeCyclic(ceil(k*dataRate/fs));
 
+        end
+        DataStream_Hamming(SignalLength) = DataStream_Hamming(SignalLength - 1);
+        DataStream_Cyclic(SignalLength) = DataStream_Cyclic(SignalLength-1);
+
+        DataStream_NoEncode = zeros(1, SignalLength_pure);
+        for k = 1:SignalLength_pure -1
+            DataStream_NoEncode(k)= Data(ceil(k*dataRate/fs));
+        end
+        DataStream_NoEncode(SignalLength_pure) = DataStream_NoEncode(SignalLength_pure-1);
+        
+        
         %----- OOK -----%
-        SignalOOK = Carrier .* DataStream;
-        Signal_Power_OOK = (norm(SignalOOK)^2)/SignalLength;
+        resultOOK_Hamming = OOK_transmission(DataStream_Hamming,SNR(i),Carrier,SignalLength,samplingPeriod,Enc_nBits,Amp);
+        resultOOK_Cyclic = OOK_transmission(DataStream_Cyclic,SNR(i),Carrier,SignalLength,samplingPeriod,Enc_nBits,Amp);
+        resultOOK_NoEncode = OOK_transmission(DataStream_NoEncode,SNR(i),Carrier_pure,SignalLength_pure,samplingPeriod,nBits,Amp);
         
-        %Generate Noise OOK
-		Noise_Power_OOK = Signal_Power_OOK ./SNR(i);
-		NoiseOOK = sqrt(Noise_Power_OOK/2) .*randn(1,SignalLength);
-		%Received Signal OOK
-		ReceiveOOK = SignalOOK+NoiseOOK;
+        decodedHamming = decode(resultOOK_Hamming,7,4,'hamming/fmt');
+        decodedCyclic = decode(resultOOK_Cyclic,7,4,'cyclic');
         
-        %OOK detection
-        SquaredOOK = ReceiveOOK .* ReceiveOOK;
-        %low pass filter
-        FilteredOOK = filtfilt(b_low, a_low, SquaredOOK);
-        
-        %sample and decide  
-        sampledOOK = sample(FilteredOOK, samplingPeriod, Enc_nBits);
-        resultOOK = decision_device(sampledOOK,Enc_nBits, Amplitude/2);  %--OOK threshold is 0.5*(A+0)
-        
-        %------ BPSK -----%
-        DataStreamBPSK = DataStream .* 2 - 1;       %change to -1 and 1 
-        SignalBPSK = Carrier .* DataStreamBPSK;
-        Signal_Power_BPSK = (norm(SignalBPSK)^2)/SignalLength;
-        %Generate Noise BPSK
-		Noise_Power_BPSK = Signal_Power_BPSK ./SNR(i);
-		NoiseBPSK = sqrt(Noise_Power_BPSK/2) .*randn(1,SignalLength);
-		%Received Signal BPSK
-		ReceiveBPSK = SignalBPSK+NoiseBPSK;
-        
-        %non-coherent detection
-        SquaredBPSK = ReceiveBPSK .* ReceiveBPSK;
-        %high pass filter (supposingly band pass filter)
-        FilteredBPSK = filtfilt(b_high, a_high, SquaredBPSK);
-        
-        %frequency divider
-        DividedBPSK = interp(FilteredBPSK, 2);
-        DividedBPSK = DividedBPSK(1:length(FilteredBPSK));
-        
-        %Multiple and Low Pass Filter
-        MultipliedBPSK = DividedBPSK .* ReceiveBPSK;
-        OutputBPSK = filtfilt(b_low, a_low, MultipliedBPSK);
-        
-        %demodulate
-        %sample and decide
-        sampledBPSK = sample(OutputBPSK, samplingPeriod, Enc_nBits);
-        resultBPSK = decision_device(sampledBPSK,Enc_nBits,0);           %-- bipolar -- threshold 0        
-
-
-        %decode
-        decodedOOK = decode(resultOOK,7,4,'hamming/fmt');
-        decodedBPSK = decode(resultBPSK,7,4,'hamming/fmt');
-        
-        ErrorOOK = 0;
-        ErrorBPSK = 0;
-        for k = 1: nBits - 1
-            if(decodedOOK(k) ~= Data(k))
-                ErrorOOK = ErrorOOK + 1;
+        %--Calculate Error--%
+        ErrorHamming = 0;
+        ErrorCyclic = 0;
+        ErrorNoEncode = 0;
+        for k = 1: nBits
+            if(decodedHamming(k) ~= Data(k))
+                ErrorHamming = ErrorHamming + 1;
             end
-            if(decodedBPSK(k) ~= Data(k))
-                ErrorBPSK = ErrorBPSK + 1;
+            if(decodedCyclic(k) ~= Data(k))
+                ErrorCyclic = ErrorCyclic + 1;
+            end
+            if (resultOOK_NoEncode(k) ~= Data(k));
+                ErrorNoEncode = ErrorNoEncode + 1;
             end
         end
-        Avg_ErrorOOK = ErrorOOK + Avg_ErrorOOK;
-        Avg_ErrorBPSK = ErrorBPSK + Avg_ErrorBPSK;
-
+        Avg_Error_Hamming = ErrorHamming + Avg_Error_Hamming;
+        Avg_Error_Cyclic = ErrorCyclic + Avg_Error_Cyclic;
+        Avg_Error_NoEncode = ErrorNoEncode + Avg_Error_NoEncode;
     end
-    
-    if (plot_SNR_dB == SNR_dB(i))
-            plot_signal = Data;
-            plot_mod_OOK = SignalOOK;
-            plot_receive_OOK = ReceiveOOK;
-            plot_demod_OOK = FilteredOOK;
-            plot_decoded_OOK = decodedOOK;
-            plot_mod_BPSK = SignalBPSK;
-            plot_receive_BPSK = ReceiveBPSK;
-            plot_demod_BPSK = FilteredBPSK;
-            plot_decoded_BPSK = decodedBPSK;
-    end
-    
-	Error_RateOOK(i) = Avg_ErrorOOK / Total_Run / nBits;
-    Error_RateBPSK(i) = Avg_ErrorBPSK / Total_Run/nBits;
+    Error_Rate_Hamming(i) = Avg_Error_Hamming/Total_Run/nBits;
+    Error_Rate_Cyclic(i) = Avg_Error_Cyclic/Total_Run/nBits;
+    Error_Rate_NoEncode(i) = Avg_Error_NoEncode/Total_Run/nBits;
 end
+
 
 %Error plot
 figure(1);
-semilogy (SNR_dB,Error_RateOOK,'k-*');
+semilogy (SNR_dB, Error_Rate_Hamming,'r-*');
 hold on
-semilogy(SNR_dB, Error_RateBPSK, 'c-*');
+semilogy(SNR_dB, Error_Rate_Cyclic, 'b-*');
 hold off
-title('Error rate of OOK and BPSK for different SNR');
-legend('OOK', 'BPSK');
+hold on
+semilogy(SNR_dB, Error_Rate_NoEncode, 'k-*');
+hold off
+title('Error rate of cyclic and hamming and No Encoding for different SNR');
+legend('hamming','cyclic','None');
 ylabel('Pe');
 xlabel('Eb/No')
 
 
-%OOK plot
-figure(2);
-subplot(511);title('Generated Data');plot(plot_signal);
-subplot(512);title('Modulated OOK');plot(plot_mod_OOK,'k');
-subplot(513);title('Received Signal OOK');plot(plot_receive_OOK, 'k')
-subplot(514);title('Demodulated OOK');plot(plot_demod_OOK, 'k');
-subplot(515);title('Decoded Data');plot(plot_decoded_OOK);
 
-%BPSK plot
-figure(3)
-subplot(511);title('Generated Data');plot(plot_signal);
-subplot(512);title('Modulated BPSK');plot( plot_mod_BPSK,'k');
-subplot(513);title('Received Signal BPSK');plot(plot_receive_BPSK, 'k')
-subplot(514);title('Demodulated BPSK');plot(plot_demod_BPSK, 'k');
-subplot(515);title('Decoded Data');plot(plot_decoded_BPSK);
 
 %%--HELPER FUNCTION--%%
 function sampled = sample(x,sampling_period,num_bit)
@@ -197,4 +168,26 @@ function binary_out = decision_device(sampled,num_bit,threshold)
             binary_out(n) = 0;
         end
     end
+end
+
+%This function is a wrapper for Phase 2 OOK 
+function result_OOK = OOK_transmission(DataStream,SNR_val,Carrier,SignalLength,samplingPeriod,Enc_nBits,Amp)
+        Signal_OOK = Carrier .* DataStream;
+        [b_low,a_low] = butter(6, 0.2);
+        %generate noise 
+        Signal_Power_OOK = (norm(Signal_OOK)^2)/SignalLength;  %Sum of squared signal amp over signal length
+		Noise_Power_OOK = Signal_Power_OOK ./SNR_val;
+		NoiseOOK = sqrt(Noise_Power_OOK/2) .*randn(1,SignalLength);
+		
+        %transmission
+		ReceiveOOK = Signal_OOK+NoiseOOK;
+        %detection -- square law device
+        SquaredOOK = ReceiveOOK .* ReceiveOOK;
+        %low pass filter
+        FilteredOOK = filtfilt(b_low, a_low, SquaredOOK);
+         
+        %sample and decision device
+        sampledOOK = sample(FilteredOOK, samplingPeriod, Enc_nBits);
+        result_OOK = decision_device(sampledOOK,Enc_nBits, Amp/2);  %--OOK threshold is 0.5*(A+0)
+
 end
