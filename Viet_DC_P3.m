@@ -2,7 +2,7 @@
 
 clear all; close all; clc;
 
-
+pskdemod
 %define carrier frequency of 10kHz
 fc = 10000; 
 %define sampling frequency of 16*fc
@@ -38,7 +38,8 @@ Carrier = Amplitude .* cos(2*pi*fc*t);
 SignalLength = Fs*Enc_nBits/dataRate + 1;
 
 %SNR_dB = 10 log (Signal_Power/Noise_Power)                 
-SNR_dB = 0:1:20;
+SNR_dB = -20:1:20;
+plot_SNR_dB = -10;
 %%SNR = S/N = 10^(SNR_dB/10)
 SNR = (10.^(SNR_dB/10));
 
@@ -131,38 +132,51 @@ for i = 1 : length(SNR)
         Avg_ErrorOOK = ErrorOOK + Avg_ErrorOOK;
         Avg_ErrorBPSK = ErrorBPSK + Avg_ErrorBPSK;
 
-	end
-	Error_RateOOK(i) = Avg_ErrorOOK / Total_Run;
-    Error_RateBPSK(i) = Avg_ErrorBPSK / Total_Run;
+    end
+    
+    if (plot_SNR_dB == SNR_dB(i))
+            plot_signal = Data;
+            plot_mod_OOK = SignalOOK;
+            plot_receive_OOK = ReceiveOOK;
+            plot_demod_OOK = FilteredOOK;
+            plot_decoded_OOK = decodedOOK;
+            plot_mod_BPSK = SignalBPSK;
+            plot_receive_BPSK = ReceiveBPSK;
+            plot_demod_BPSK = FilteredBPSK;
+            plot_decoded_BPSK = decodedBPSK;
+    end
+    
+	Error_RateOOK(i) = Avg_ErrorOOK / Total_Run / nBits;
+    Error_RateBPSK(i) = Avg_ErrorBPSK / Total_Run/nBits;
 end
 
+%Error plot
 figure(1);
 semilogy (SNR_dB,Error_RateOOK,'k-*');
 hold on
 semilogy(SNR_dB, Error_RateBPSK, 'c-*');
-title('Error rate of OOK and BPSK for different SNR, encoded with Hamming');
 hold off
+title('Error rate of OOK and BPSK for different SNR');
 legend('OOK', 'BPSK');
 ylabel('Pe');
 xlabel('Eb/No')
 
 
- 
 %OOK plot
 figure(2);
-subplot(221);title('Transmitted Signal OOK');plot(SignalOOK,'k');
-subplot(222);title('Received Signal OOK');plot(ReceiveOOK, 'k')
-subplot(223);title('Filtered Signal OOK');plot(FilteredOOK, 'k');
-subplot(224);title('Captured Data');plot(sampledOOK);
+subplot(511);title('Generated Data');plot(plot_signal);
+subplot(512);title('Modulated OOK');plot(plot_mod_OOK,'k');
+subplot(513);title('Received Signal OOK');plot(plot_receive_OOK, 'k')
+subplot(514);title('Demodulated OOK');plot(plot_demod_OOK, 'k');
+subplot(515);title('Decoded Data');plot(plot_decoded_OOK);
 
 %BPSK plot
 figure(3)
-subplot(221);title('Transmitted Signal BPSK');plot(SignalBPSK,'k');
-subplot(222);title('Received Signal BPSK');plot(ReceiveBPSK, 'k')
-subplot(223);title('Filtered Signal BPSK');plot(FilteredBPSK, 'k');
-subplot(224);title('Captured Data');plot(sampledBPSK);
-
-
+subplot(511);title('Generated Data');plot(plot_signal);
+subplot(512);title('Modulated BPSK');plot( plot_mod_BPSK,'k');
+subplot(513);title('Received Signal BPSK');plot(plot_receive_BPSK, 'k')
+subplot(514);title('Demodulated BPSK');plot(plot_demod_BPSK, 'k');
+subplot(515);title('Decoded Data');plot(plot_decoded_BPSK);
 
 %%--HELPER FUNCTION--%%
 function sampled = sample(x,sampling_period,num_bit)

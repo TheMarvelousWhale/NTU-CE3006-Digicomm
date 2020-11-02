@@ -70,13 +70,20 @@ for i = 1 : length(SNR)
         
         %Initialize Error for this run
 		Error = 0;
-        
+        Output = zeros(1,nBits);
         %Fix the threshold value as 0
         %If received signal >= threshold value, threshold = 1
         %If received signal < threshold value, threshold = 0
 		for k= 1 : nBits
+            if (Receive(k)>= Threshold)
+                Output(k) = 1;
+            end
+            if (Receive(k) < Threshold)
+                Output(k) = 0;
+            end
 			if (Receive(k)>= Threshold) && Data(k)==0||(Receive(k)<Threshold && Data(k)==1)
-				Error = Error+1;
+				
+                Error = Error+1;
 			end
         end
         
@@ -93,6 +100,7 @@ for i = 1 : length(SNR)
             plot_signal = Signal;
             plot_noise = Noise;
             plot_receive = Receive;
+            plot_output = Output;
         end
         
     end
@@ -109,7 +117,7 @@ Pred_BER=(1/2)*erfc(sqrt(SNR));
 figure("position", [10,100,1400,800]) 
 
 %BER against SNR -- main plot
-subplot(221)
+figure(1);
 semilogy (SNR_dB,Error_Rate,'r*');
 xlabel('Normalized SNR')
 ylabel('Probability Error');
@@ -121,19 +129,10 @@ axis([0 20 10^(-5) 1]);
 hold off
 
 %data generation
-subplot(222)
-plot(plot_signal);
-title('Data Generated')
-
-%noise generation
-subplot(223)
-plot(plot_noise);
-title('Noise Generated')
-
-%received data generation
-subplot(224)
-plot(plot_receive);
-title('Received Data')
-
+figure(2)
+subplot(221);plot(plot_signal);title('Data Generated');
+subplot(224);plot(plot_noise);title('Noise Generated');
+subplot(222);plot(plot_receive);title('Received Data');
+subplot(223);plot(plot_output);title('Output');
 
 
